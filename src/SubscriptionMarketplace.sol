@@ -3,7 +3,7 @@ pragma solidity 0.8.26;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {PaymentProcessor} from "./PaymentProcessor.sol";
 
 contract SubscriptionMarketplace is Ownable {
     /*//////////////////////////////////////////////////////////////
@@ -11,11 +11,7 @@ contract SubscriptionMarketplace is Ownable {
     //////////////////////////////////////////////////////////////*/
 
     IERC1155 private immutable i_subscriptionNft;
-    IERC20 private immutable i_usdc;
-    uint256 private s_feePercentage = 3; // 3%
-    uint256 private constant MAX_FEE_PERCENTAGE = 7; // 7%
-    uint256 private constant FEE_PRECISION = 100;
-    address private s_feeRecipient;
+    PaymentProcessor private immutable i_paymentProcessor;
     uint256 private s_listingId;
     mapping(uint256 listingId => Listing listing) private s_listingIdToListing;
 
@@ -36,13 +32,10 @@ contract SubscriptionMarketplace is Ownable {
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
-    error SubscriptionMarketplace__FeePercentageExceedsMax();
-    error SubscriptionMarketplace__ZeroAddress();
     error SubscriptionMarketplace__InvalidQuantity();
     error SubscriptionMarketplace__InvalidPrice();
     error SubscriptionMarketplace__NotEnoughBalance();
     error SubscriptionMarketplace__InvalidListingId();
-    error SubscriptionMarketplace__FailedToTransfer();
     error SubscriptionMarketplace__NotOwner();
     error SubscriptionMarketplace__AlreadyCancelled();
 
@@ -50,8 +43,6 @@ contract SubscriptionMarketplace is Ownable {
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
-    event FeePercentageUpdated(uint256 feePercentage);
-    event FeeRecipientUpdated(address feeRecipient);
     event ListingCreated(
         uint256 indexed listingId,
         uint256 indexed tokenId,
@@ -72,37 +63,11 @@ contract SubscriptionMarketplace is Ownable {
 
     constructor(
         address _subscriptionNft,
-        address _usdc,
-        address _feeRecipient
+        address _paymentProcessor
     ) Ownable(msg.sender) {
         i_subscriptionNft = IERC1155(_subscriptionNft);
-        i_usdc = IERC20(_usdc);
-        s_feeRecipient = _feeRecipient;
+        i_paymentProcessor = PaymentProcessor(_paymentProcessor);
         s_listingId = 0;
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                            OWNER FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
-
-    function setFeePercentage(uint256 _feePercentage) external onlyOwner {
-        if (_feePercentage > MAX_FEE_PERCENTAGE) {
-            revert SubscriptionMarketplace__FeePercentageExceedsMax();
-        }
-
-        s_feePercentage = _feePercentage;
-
-        emit FeePercentageUpdated(_feePercentage);
-    }
-
-    function setFeeRecipient(address _feeRecipient) external onlyOwner {
-        if (_feeRecipient == address(0)) {
-            revert SubscriptionMarketplace__ZeroAddress();
-        }
-
-        s_feeRecipient = _feeRecipient;
-
-        emit FeeRecipientUpdated(_feeRecipient);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -153,23 +118,11 @@ contract SubscriptionMarketplace is Ownable {
         }
 
         uint256 totalPrice = listing.price * quantity;
-        uint256 fee = (totalPrice * s_feePercentage) / FEE_PRECISION;
-        uint256 amountToSeller = totalPrice - fee;
-
-        bool successTransferFee = i_usdc.transferFrom(
-            msg.sender,
-            s_feeRecipient,
-            fee
-        );
-        bool successTransferSeller = i_usdc.transferFrom(
+        i_paymentProcessor.processPayment(
             msg.sender,
             listing.seller,
-            amountToSeller
+            totalPrice
         );
-
-        if (!successTransferFee || !successTransferSeller) {
-            revert SubscriptionMarketplace__FailedToTransfer();
-        }
 
         i_subscriptionNft.safeTransferFrom(
             listing.seller,
@@ -211,23 +164,11 @@ contract SubscriptionMarketplace is Ownable {
         return s_listingIdToListing[listingId];
     }
 
-    function getFeePercentage() external view returns (uint256) {
-        return s_feePercentage;
-    }
-
-    function getFeeRecipient() external view returns (address) {
-        return s_feeRecipient;
-    }
-
     function getListingId() external view returns (uint256) {
         return s_listingId;
     }
 
     function getSubscriptionNft() external view returns (address) {
         return address(i_subscriptionNft);
-    }
-
-    function getUsdc() external view returns (address) {
-        return address(i_usdc);
     }
 }
