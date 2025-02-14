@@ -147,3 +147,18 @@ A **Web3-powered subscription marketplace** where:
 **Details:**
 
 - **Interoperability:** Hyperlane facilitates communication between different blockchains, allowing SubSwap to operate seamlessly across various networks.
+
+---
+
+# **Profit Strategies**
+
+### **1️⃣ Marketplace Transaction Fee (1-5%)**
+
+- Charge a **small fee on every transaction** that occurs in the marketplace.
+- This is **lower than centralized platforms** (which take 15-30%), making it fair.
+- Example: If Bob buys a Netflix subscription NFT for **$10 USDC**, SubSwap **takes 3% ($0.30)** as a fee.
+
+### **2️⃣ Cross-Chain Bridge Fee (0.5-1%)**
+
+- If users **move their subscription NFTs** across chains (Polygon → Arbitrum), charge a **small bridging fee.**
+- Example: Bob moves his Netflix NFT from **Polygon to Arbitrum** → pays **a 0.5% fee.**
