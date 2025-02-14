@@ -100,11 +100,11 @@ A **Web3-powered subscription marketplace** where:
 
 **Details:**
 
-- **Embedded Wallets:** Privy offers embedded wallets that can be configured to create wallets upon user registration. Developers can manage settings such as when the wallet is created and how user confirmations are handled. citeturn0search0
+- **Embedded Wallets:** Privy offers embedded wallets that can be configured to create wallets upon user registration. Developers can manage settings such as when the wallet is created and how user confirmations are handled.
 
-- **Cross-App Connectivity:** Privy's embedded wallet connector allows integration with existing libraries like RainbowKit or wagmi, ensuring users can access their wallets across different applications. citeturn0search2
+- **Cross-App Connectivity:** Privy's embedded wallet connector allows integration with existing libraries like RainbowKit or wagmi, ensuring users can access their wallets across different applications.
 
-- **Android Support:** Privy has extended support for Android platforms, enabling developers to integrate embedded wallets into Android applications. citeturn0search4
+- **Android Support:** Privy has extended support for Android platforms, enabling developers to integrate embedded wallets into Android applications.
 
 ## **2. Subscription Tokenization**
 
@@ -114,9 +114,9 @@ A **Web3-powered subscription marketplace** where:
 
 **Details:**
 
-- **ERC-1155 Standard:** This standard allows for the creation of both fungible and non-fungible tokens within a single contract, making it efficient for managing multiple subscription types. citeturn0search11
+- **ERC-1155 Standard:** This standard allows for the creation of both fungible and non-fungible tokens within a single contract, making it efficient for managing multiple subscription types.
 
-- **Polygon Network:** Deploying ERC-1155 contracts on Polygon offers scalability and lower transaction fees, enhancing the user experience. citeturn0search7
+- **Polygon Network:** Deploying ERC-1155 contracts on Polygon offers scalability and lower transaction fees, enhancing the user experience.
 
 ## **3. Stablecoin Payments**
 
