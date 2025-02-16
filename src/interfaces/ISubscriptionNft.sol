@@ -61,4 +61,8 @@ interface ISubscriptionNft {
     function getSubscriptionFactory() external view returns (address);
 
     function getTokenId() external view returns (uint256);
+
+    function getTokenIdsByPlanId(
+        uint256 planId
+    ) external view returns (uint256[] memory);
 }

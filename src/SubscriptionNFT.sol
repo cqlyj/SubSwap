@@ -17,6 +17,7 @@ contract SubscriptionNft is ERC1155 {
     SubscriptionFactory private immutable i_factory;
     mapping(uint256 tokenId => Subscription subscription)
         private s_tokenIdToSubscription;
+    mapping(uint256 planId => uint256[] tokenIds) private s_planIdToTokenIds;
 
     /*//////////////////////////////////////////////////////////////
                                 STRUCTS
@@ -100,6 +101,7 @@ contract SubscriptionNft is ERC1155 {
             endTime: block.timestamp + duration,
             isActive: true
         });
+        s_planIdToTokenIds[planId].push(s_tokenId);
 
         _mint(msg.sender, s_tokenId, quantity, "");
 
@@ -194,5 +196,11 @@ contract SubscriptionNft is ERC1155 {
 
     function getTokenId() external view returns (uint256) {
         return s_tokenId;
+    }
+
+    function getTokenIdsByPlanId(
+        uint256 planId
+    ) external view returns (uint256[] memory) {
+        return s_planIdToTokenIds[planId];
     }
 }
