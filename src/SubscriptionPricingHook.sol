@@ -9,6 +9,7 @@ import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {BeforeSwapDelta} from "v4-core/src/types/BeforeSwapDelta.sol";
 import {ISubscriptionNft} from "./interfaces/ISubscriptionNft.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract SubscriptionPricingHook is BaseHook {
     using PoolIdLibrary for PoolKey;
@@ -21,7 +22,8 @@ contract SubscriptionPricingHook is BaseHook {
     mapping(PoolId poolId => SubscriptionData subscriptionData)
         private s_poolIdToSubscriptionData;
     ISubscriptionNft private immutable i_subscriptionNft;
-    int256 private constant PRECISION = 1e18;
+    // USDC got only 6 decimals
+    uint256 private constant PRECISION = 1e6;
 
     /*//////////////////////////////////////////////////////////////
                                 STRUCTS
@@ -108,6 +110,9 @@ contract SubscriptionPricingHook is BaseHook {
     ) external override returns (bytes4, BeforeSwapDelta, uint24) {
         PoolId poolId = key.toId();
         uint256 tokenId;
+        SubscriptionData memory subscriptionData = s_poolIdToSubscriptionData[
+            poolId
+        ];
 
         if (params.amountSpecified > 0) {
             // positive => exactOut => swap NFT for USDC => sell NFT
@@ -125,7 +130,7 @@ contract SubscriptionPricingHook is BaseHook {
                 // Default: Find the best match
                 tokenId = findMatchedNft(
                     poolId,
-                    i_subscriptionNft.getSubscription(tokenId).planId,
+                    subscriptionData.planId,
                     params.amountSpecified
                 );
             }
@@ -142,8 +147,13 @@ contract SubscriptionPricingHook is BaseHook {
         // int256 amountSpecified;
 
         // @audit this precision may cause the amount to be rounded down to 0
-        int256 adjustedAmount = (params.amountSpecified *
-            int256(currentPrice)) / PRECISION;
+        int256 adjustedAmount = SafeCast.toInt256(
+            Math.mulDiv(
+                uint256(params.amountSpecified),
+                uint256(currentPrice),
+                PRECISION
+            )
+        );
 
         if (params.amountSpecified > 0) {
             // positive => exactOut => swap NFT for USDC
@@ -188,10 +198,7 @@ contract SubscriptionPricingHook is BaseHook {
         ISubscriptionNft.Subscription memory subscription = i_subscriptionNft
             .getSubscription(tokenId);
 
-        if (
-            subscriptionData.planId !=
-            i_subscriptionNft.getSubscription(tokenId).planId
-        ) {
+        if (subscriptionData.planId != subscription.planId) {
             revert SubscriptionPricingHook__SubscriptionNotFound();
         }
 
@@ -232,22 +239,37 @@ contract SubscriptionPricingHook is BaseHook {
             revert SubscriptionPricingHook__NoMatchingNFTFound();
         }
 
+        uint256 bestMatch = type(uint256).max;
+        uint256 bestPrice = type(uint256).max; // Start with max price
+
         for (uint256 i = 0; i < tokenIds.length; i++) {
             ISubscriptionNft.Subscription
                 memory subscription = i_subscriptionNft.getSubscription(
                     tokenIds[i]
                 );
-            uint256 timeRemaining = subscription.endTime > block.timestamp
-                ? subscription.endTime - block.timestamp
-                : 0;
+
+            if (subscription.endTime < block.timestamp) continue; // Skip expired ones
+
+            uint256 timeRemaining = subscription.endTime - block.timestamp;
             uint256 duration = subscription.endTime - subscription.startTime;
+            if (duration == 0) continue; // Avoid division by zero
+
             uint256 calculatedPrice = (subscriptionData.basePrice *
                 timeRemaining) / duration;
 
-            if (calculatedPrice <= uint256(usdcAmount)) {
-                return tokenIds[i];
+            if (
+                calculatedPrice <= uint256(usdcAmount) &&
+                calculatedPrice < bestPrice
+            ) {
+                bestPrice = calculatedPrice;
+                bestMatch = tokenIds[i];
             }
         }
-        revert SubscriptionPricingHook__NoMatchingNFTFound();
+
+        if (bestMatch == type(uint256).max) {
+            revert SubscriptionPricingHook__NoMatchingNFTFound();
+        }
+
+        return bestMatch;
     }
 }
