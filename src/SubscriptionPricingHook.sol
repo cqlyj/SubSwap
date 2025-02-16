@@ -94,7 +94,7 @@ contract SubscriptionPricingHook is BaseHook {
     }
 
     /// @notice The hook called before a swap
-    /// @param sender The initial msg.sender for the swap call
+    ///  param sender The initial msg.sender for the swap call
     /// @param key The key for the pool
     /// @param params The parameters for the swap
     /// @param hookData Arbitrary data handed into the PoolManager by the swapper to be passed on to the hook
@@ -103,7 +103,7 @@ contract SubscriptionPricingHook is BaseHook {
     /// @return uint24 Optionally override the lp fee, only used if three conditions are met: 1. the Pool has a dynamic fee, 2. the value's 2nd highest bit is set (23rd bit, 0x400000), and 3. the value is less than or equal to the maximum fee (1 million)
 
     function beforeSwap(
-        address sender,
+        address,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,
         bytes calldata hookData
@@ -136,7 +136,7 @@ contract SubscriptionPricingHook is BaseHook {
             }
         }
 
-        uint256 currentPrice = getPrice(tokenId, poolId);
+        uint256 currentPrice = getPrice(tokenId, subscriptionData);
         emit PriceUpdated(poolId, tokenId, currentPrice);
 
         // Adjust swap output based on dynamic pricing
@@ -181,12 +181,8 @@ contract SubscriptionPricingHook is BaseHook {
 
     function getPrice(
         uint256 tokenId,
-        PoolId poolId
+        SubscriptionData memory subscriptionData
     ) public view returns (uint256 price) {
-        SubscriptionData memory subscriptionData = s_poolIdToSubscriptionData[
-            poolId
-        ];
-
         if (subscriptionData.nftContract == address(0)) {
             revert SubscriptionPricingHook__SubscriptionNotFound();
         }
@@ -222,7 +218,7 @@ contract SubscriptionPricingHook is BaseHook {
         }
     }
 
-    // @update this function should be optimized to avoid iterating over all tokenIds
+    // this function should be optimized to avoid iterating over all tokenIds
     function findMatchedNft(
         PoolId poolId,
         uint256 planId,
