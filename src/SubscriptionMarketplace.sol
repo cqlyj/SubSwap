@@ -48,7 +48,7 @@ contract SubscriptionMarketplace {
     //////////////////////////////////////////////////////////////*/
 
     event PoolCreated(PoolId indexed poolId);
-    event PositionMinted(PoolId indexed poolId);
+    event PositionMinted(PoolId indexed poolId, uint256 tokenId);
 
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
@@ -179,7 +179,7 @@ contract SubscriptionMarketplace {
         uint256 amount1Max,
         address recipient,
         bytes calldata hookData // encoded tokenId
-    ) external {
+    ) external returns (uint256 tokenId) {
         (
             bytes memory actions,
             bytes[] memory mintParams
@@ -199,12 +199,13 @@ contract SubscriptionMarketplace {
             ? amount0Max
             : 0;
 
+        tokenId = i_positionManager.nextTokenId();
         i_positionManager.modifyLiquidities{value: valueToPass}(
             abi.encode(actions, mintParams),
             deadline
         );
 
-        emit PositionMinted(poolKey.toId());
+        emit PositionMinted(poolKey.toId(), tokenId);
     }
 
     function increaseLiquidity() external {}
