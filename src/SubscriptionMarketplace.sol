@@ -2,6 +2,7 @@
 pragma solidity 0.8.26;
 
 import {PoolKey, PoolIdLibrary} from "v4-core/src/types/PoolKey.sol";
+import {PoolId} from "v4-core/src/types/PoolId.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {IWrappedSubscription} from "./interfaces/IWrappedSubscription.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -37,12 +38,19 @@ contract SubscriptionMarketplace {
     /*//////////////////////////////////////////////////////////////
                                  STRUCT
     //////////////////////////////////////////////////////////////*/
+
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
+
+    error SubscriptionMarketplace__FailedToCreatePool();
+
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
+
+    event PoolCreated(PoolId indexed poolId);
+
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
@@ -171,7 +179,12 @@ contract SubscriptionMarketplace {
         );
 
         // 9. Execute the multicall
-        PositionManager(i_positionManager).multicall(params);
+
+        try PositionManager(i_positionManager).multicall(params) {
+            emit PoolCreated(pool.toId());
+        } catch {
+            revert SubscriptionMarketplace__FailedToCreatePool();
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
