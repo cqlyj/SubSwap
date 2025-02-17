@@ -83,7 +83,7 @@ contract SubscriptionMarketplace {
         uint256 token1Amount,
         uint256 amount0Max,
         uint256 amount1Max,
-        bytes memory hookData // encoded tokenId
+        bytes calldata hookData // encoded tokenId
     ) external {
         // 1. Initialize the parameters provided to multicall()
 
@@ -98,36 +98,17 @@ contract SubscriptionMarketplace {
         // tickSpacing is the granularity of the pool. Lower values are more precise but more expensive to trade
         // hookContract is the address of the hook contract
 
-        Currency currency0 = Currency.wrap(address(i_usdc));
-        Currency currency1 = Currency.wrap(address(wrappedSubscription));
-
-        // Ensure currencies are in ascending order
-        if (currency0.toId() > currency1.toId()) {
-            (currency0, currency1) = (currency1, currency0);
-        }
-
-        if (hooks == IHooks(address(0))) {
-            // if no hooks are provided, use the default
-            hooks = i_defaultHooks;
-        }
-
-        PoolKey memory pool = PoolKey({
-            currency0: currency0,
-            currency1: currency1,
-            fee: swapFee,
-            tickSpacing: TICK_SPACING,
-            hooks: hooks
-        });
+        PoolKey memory pool = _configurePool(
+            wrappedSubscription,
+            swapFee,
+            hooks
+        );
 
         // 3. Encode the initializePool parameters
 
         // the startingPrice is expressed as sqrtPriceX96: floor(sqrt(token1 / token0) * 2^96)
         // 79228162514264337593543950336 is the starting price for a 1:1 pool
-        params[0] = abi.encodeWithSelector(
-            i_positionManager.initializePool.selector,
-            pool,
-            startingPrice
-        );
+        params[0] = _initializePool(pool, startingPrice);
 
         // 4. Initialize the mint-liquidity parameters
         // 5. Encode the MINT_POSITION parameters
@@ -197,7 +178,7 @@ contract SubscriptionMarketplace {
         uint256 amount0Max,
         uint256 amount1Max,
         address recipient,
-        bytes memory hookData // encoded tokenId
+        bytes calldata hookData // encoded tokenId
     ) external {
         (
             bytes memory actions,
@@ -238,6 +219,41 @@ contract SubscriptionMarketplace {
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
+    function _initializePool(
+        PoolKey memory pool,
+        uint160 startingPrice
+    ) internal view returns (bytes memory) {
+        return
+            abi.encodeWithSelector(
+                i_positionManager.initializePool.selector,
+                pool,
+                startingPrice
+            );
+    }
+
+    function _configurePool(
+        address wrappedSubscription,
+        uint24 swapFee,
+        IHooks hooks
+    ) internal view returns (PoolKey memory pool) {
+        Currency currency0 = Currency.wrap(address(i_usdc));
+        Currency currency1 = Currency.wrap(address(wrappedSubscription));
+        if (currency0.toId() > currency1.toId()) {
+            (currency0, currency1) = (currency1, currency0);
+        }
+        if (hooks == IHooks(address(0))) {
+            hooks = i_defaultHooks;
+        }
+        return
+            PoolKey({
+                currency0: currency0,
+                currency1: currency1,
+                fee: swapFee,
+                tickSpacing: TICK_SPACING,
+                hooks: hooks
+            });
+    }
+
     function _mintLiquidityParams(
         PoolKey memory poolKey,
         int24 _tickLower,
@@ -246,7 +262,7 @@ contract SubscriptionMarketplace {
         uint256 amount0Max,
         uint256 amount1Max,
         address recipient,
-        bytes memory hookData
+        bytes calldata hookData
     ) internal pure returns (bytes memory, bytes[] memory) {
         // The first command MINT_POSITION creates a new liquidity position
         // The second command SETTLE_PAIR indicates that tokens are to be paid by the caller, to create the position
