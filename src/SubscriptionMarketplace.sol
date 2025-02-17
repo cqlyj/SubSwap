@@ -3,7 +3,7 @@ pragma solidity 0.8.26;
 
 import {PoolKey, PoolIdLibrary} from "v4-core/src/types/PoolKey.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
-import {ISubscriptionNft} from "./interfaces/ISubscriptionNft.sol";
+import {IWrappedSubscription} from "./interfaces/IWrappedSubscription.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Currency, CurrencyLibrary} from "v4-core/src/types/Currency.sol";
@@ -13,7 +13,6 @@ import {Actions} from "v4-periphery/src/libraries/Actions.sol";
 import {LiquidityAmounts} from "v4-core/test/utils/LiquidityAmounts.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
-import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 
 contract SubscriptionMarketplace {
     using SafeERC20 for IERC20;
@@ -25,7 +24,7 @@ contract SubscriptionMarketplace {
     //////////////////////////////////////////////////////////////*/
 
     IPoolManager private immutable i_poolManager;
-    ISubscriptionNft private immutable i_subscriptionNft;
+    IWrappedSubscription private immutable i_wrappedSubscription;
     IERC20 private immutable i_usdc;
     IHooks private immutable i_defaultHooks; // SubscriptionPricingHook
     PositionManager private immutable i_positionManager;
@@ -50,14 +49,14 @@ contract SubscriptionMarketplace {
 
     constructor(
         address _poolManager,
-        address _subscriptionNft,
+        address _wrappedSubscription,
         address _usdc,
         address _defaultHooks,
         address _positionManager,
         address _permit2
     ) {
         i_poolManager = IPoolManager(_poolManager);
-        i_subscriptionNft = ISubscriptionNft(_subscriptionNft);
+        i_wrappedSubscription = IWrappedSubscription(_wrappedSubscription);
         i_usdc = IERC20(_usdc);
         i_defaultHooks = IHooks(_defaultHooks);
         i_positionManager = PositionManager(payable(_positionManager));
@@ -92,7 +91,7 @@ contract SubscriptionMarketplace {
         // hookContract is the address of the hook contract
 
         Currency currency0 = Currency.wrap(address(i_usdc));
-        Currency currency1 = Currency.wrap(address(i_subscriptionNft));
+        Currency currency1 = Currency.wrap(address(i_wrappedSubscription));
 
         // Ensure currencies are in ascending order
         if (currency0.toId() > currency1.toId()) {
@@ -184,6 +183,10 @@ contract SubscriptionMarketplace {
 
         // approve permit2 as a spender
         IERC20(i_usdc).approve(address(i_permit2), type(uint256).max);
+        IERC20(address(i_wrappedSubscription)).approve(
+            address(i_permit2),
+            type(uint256).max
+        );
 
         // approve `PositionManager` as a spender
         IAllowanceTransfer(address(i_permit2)).approve(
@@ -192,20 +195,11 @@ contract SubscriptionMarketplace {
             type(uint160).max,
             type(uint48).max
         );
-
-        // Approve PositionManager to manage ERC-1155 tokens
-
-        // @update
-        // In the hooks, Modify beforeSwap to Transfer ERC-1155 Tokens
-        // This ensures ERC-1155 tokens move correctly before the swap happens.
-        // After a swap, the recipient must receive the ERC-1155 token.
-        // Ensures ERC-1155 tokens go to the correct recipient after the swap.
-
-        // @audit will this work? What about wrapping the ERC-1155 in a ERC-20 wrapper?
-
-        IERC1155(address(i_subscriptionNft)).setApprovalForAll(
+        IAllowanceTransfer(address(i_permit2)).approve(
+            address(i_wrappedSubscription),
             address(i_positionManager),
-            true
+            type(uint160).max,
+            type(uint48).max
         );
 
         // 9. Execute the multicall
