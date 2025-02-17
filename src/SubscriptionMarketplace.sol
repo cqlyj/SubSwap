@@ -122,25 +122,8 @@ contract SubscriptionMarketplace {
         );
 
         // 4. Initialize the mint-liquidity parameters
-
-        // The first command MINT_POSITION creates a new liquidity position
-        // The second command SETTLE_PAIR indicates that tokens are to be paid by the caller, to create the position
-
-        bytes memory actions = abi.encodePacked(
-            uint8(Actions.MINT_POSITION),
-            uint8(Actions.SETTLE_PAIR)
-        );
-
         // 5. Encode the MINT_POSITION parameters
-
-        // pool the same PoolKey defined above, in pool-creation
-        // tickLower and tickUpper are the range of the position, must be a multiple of pool.tickSpacing
-        // liquidity is the amount of liquidity units to add, see LiquidityAmounts for converting token amounts to liquidity units
-        // amount0Max and amount1Max are the maximum amounts of token0 and token1 the caller is willing to transfer
-        // recipient is the address that will receive the liquidity position (ERC-721)
-        // hookData is the optional hook data
-
-        bytes[] memory mintParams = new bytes[](2);
+        // 6. Encode the SETTLE_PAIR parameters
 
         // Converts token amounts to liquidity units
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
@@ -151,21 +134,19 @@ contract SubscriptionMarketplace {
             token1Amount
         );
 
-        mintParams[0] = abi.encode(
-            pool,
-            TICK_LOWER,
-            TICK_UPPER,
-            liquidity,
-            amount0Max,
-            amount1Max,
-            // The recipient of the liquidity position is the caller, he owns the NFT
-            msg.sender, // recipient
-            hookData
-        );
-
-        // 6. Encode the SETTLE_PAIR parameters
-        // Creating a position on a pool requires the caller to transfer `currency0` and `currency1` tokens
-        mintParams[1] = abi.encode(pool.currency0, pool.currency1);
+        (
+            bytes memory actions,
+            bytes[] memory mintParams
+        ) = _mintLiquidityParams(
+                pool,
+                TICK_LOWER,
+                TICK_UPPER,
+                liquidity,
+                amount0Max,
+                amount1Max,
+                msg.sender,
+                hookData
+            );
 
         // 7. Encode the modifyLiquidites call
 
@@ -182,24 +163,11 @@ contract SubscriptionMarketplace {
         // PositionManager uses Permit2 for token transfers
 
         // approve permit2 as a spender
-        IERC20(i_usdc).approve(address(i_permit2), type(uint256).max);
-        IERC20(address(i_wrappedSubscription)).approve(
-            address(i_permit2),
-            type(uint256).max
-        );
-
-        // approve `PositionManager` as a spender
-        IAllowanceTransfer(address(i_permit2)).approve(
-            address(i_usdc),
-            address(i_positionManager),
-            type(uint160).max,
-            type(uint48).max
-        );
-        IAllowanceTransfer(address(i_permit2)).approve(
-            address(i_wrappedSubscription),
-            address(i_positionManager),
-            type(uint160).max,
-            type(uint48).max
+        _tokenApprovals(
+            pool.currency0,
+            i_usdc,
+            pool.currency1,
+            IERC20(address(i_wrappedSubscription))
         );
 
         // 9. Execute the multicall
@@ -209,6 +177,73 @@ contract SubscriptionMarketplace {
     /*//////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    function _mintLiquidityParams(
+        PoolKey memory poolKey,
+        int24 _tickLower,
+        int24 _tickUpper,
+        uint256 liquidity,
+        uint256 amount0Max,
+        uint256 amount1Max,
+        address recipient,
+        bytes memory hookData
+    ) internal pure returns (bytes memory, bytes[] memory) {
+        // The first command MINT_POSITION creates a new liquidity position
+        // The second command SETTLE_PAIR indicates that tokens are to be paid by the caller, to create the position
+        bytes memory actions = abi.encodePacked(
+            uint8(Actions.MINT_POSITION),
+            uint8(Actions.SETTLE_PAIR)
+        );
+
+        // pool the same PoolKey defined above, in pool-creation
+        // tickLower and tickUpper are the range of the position, must be a multiple of pool.tickSpacing
+        // liquidity is the amount of liquidity units to add, see LiquidityAmounts for converting token amounts to liquidity units
+        // amount0Max and amount1Max are the maximum amounts of token0 and token1 the caller is willing to transfer
+        // recipient is the address that will receive the liquidity position (ERC-721)
+        // hookData is the optional hook data
+
+        bytes[] memory params = new bytes[](2);
+        params[0] = abi.encode(
+            poolKey,
+            _tickLower,
+            _tickUpper,
+            liquidity,
+            amount0Max,
+            amount1Max,
+            // The recipient of the liquidity position is the caller, he owns the NFT
+            recipient,
+            hookData
+        );
+        // Creating a position on a pool requires the caller to transfer `currency0` and `currency1` tokens
+        params[1] = abi.encode(poolKey.currency0, poolKey.currency1);
+        return (actions, params);
+    }
+
+    function _tokenApprovals(
+        Currency currency0,
+        IERC20 token0,
+        Currency currency1,
+        IERC20 token1
+    ) public {
+        if (!currency0.isAddressZero()) {
+            token0.approve(address(i_permit2), type(uint256).max);
+            i_permit2.approve(
+                address(token0),
+                address(i_positionManager),
+                type(uint160).max,
+                type(uint48).max
+            );
+        }
+        if (!currency1.isAddressZero()) {
+            token1.approve(address(i_permit2), type(uint256).max);
+            i_permit2.approve(
+                address(token1),
+                address(i_positionManager),
+                type(uint160).max,
+                type(uint48).max
+            );
+        }
+    }
 
     /*//////////////////////////////////////////////////////////////
                                 GETTERS
