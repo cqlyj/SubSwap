@@ -4,7 +4,6 @@ pragma solidity 0.8.26;
 import {PoolKey, PoolIdLibrary} from "v4-core/src/types/PoolKey.sol";
 import {PoolId} from "v4-core/src/types/PoolId.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
-import {IWrappedSubscription} from "./interfaces/IWrappedSubscription.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Currency, CurrencyLibrary} from "v4-core/src/types/Currency.sol";
@@ -25,14 +24,13 @@ contract SubscriptionMarketplace {
     //////////////////////////////////////////////////////////////*/
 
     IPoolManager private immutable i_poolManager;
-    IWrappedSubscription private immutable i_wrappedSubscription;
     IERC20 private immutable i_usdc;
     IHooks private immutable i_defaultHooks; // SubscriptionPricingHook
     PositionManager private immutable i_positionManager;
+    // Deployed Permit2 bytecode at
+    // https://etherscan.io/address/0x000000000022D473030F116dDEE9F6B43aC78BA3#code
     IAllowanceTransfer private immutable i_permit2;
     int24 private constant TICK_SPACING = 60;
-    int24 private constant TICK_LOWER = -600;
-    int24 private constant TICK_UPPER = 600;
     uint256 private constant DEADLINE_INTERVAL = 60;
 
     /*//////////////////////////////////////////////////////////////
@@ -50,6 +48,7 @@ contract SubscriptionMarketplace {
     //////////////////////////////////////////////////////////////*/
 
     event PoolCreated(PoolId indexed poolId);
+    event PositionMinted(PoolId indexed poolId);
 
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
@@ -57,14 +56,12 @@ contract SubscriptionMarketplace {
 
     constructor(
         address _poolManager,
-        address _wrappedSubscription,
         address _usdc,
         address _defaultHooks,
         address _positionManager,
         address _permit2
     ) {
         i_poolManager = IPoolManager(_poolManager);
-        i_wrappedSubscription = IWrappedSubscription(_wrappedSubscription);
         i_usdc = IERC20(_usdc);
         i_defaultHooks = IHooks(_defaultHooks);
         i_positionManager = PositionManager(payable(_positionManager));
@@ -76,9 +73,12 @@ contract SubscriptionMarketplace {
     //////////////////////////////////////////////////////////////*/
 
     function createPool(
+        address wrappedSubscription,
         uint24 swapFee,
         IHooks hooks,
         uint160 startingPrice,
+        int24 tickLower,
+        int24 tickUpper,
         uint256 token0Amount,
         uint256 token1Amount,
         uint256 amount0Max,
@@ -99,7 +99,7 @@ contract SubscriptionMarketplace {
         // hookContract is the address of the hook contract
 
         Currency currency0 = Currency.wrap(address(i_usdc));
-        Currency currency1 = Currency.wrap(address(i_wrappedSubscription));
+        Currency currency1 = Currency.wrap(address(wrappedSubscription));
 
         // Ensure currencies are in ascending order
         if (currency0.toId() > currency1.toId()) {
@@ -136,8 +136,8 @@ contract SubscriptionMarketplace {
         // Converts token amounts to liquidity units
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
             startingPrice,
-            TickMath.getSqrtPriceAtTick(TICK_LOWER),
-            TickMath.getSqrtPriceAtTick(TICK_UPPER),
+            TickMath.getSqrtPriceAtTick(tickLower),
+            TickMath.getSqrtPriceAtTick(tickUpper),
             token0Amount,
             token1Amount
         );
@@ -147,8 +147,8 @@ contract SubscriptionMarketplace {
             bytes[] memory mintParams
         ) = _mintLiquidityParams(
                 pool,
-                TICK_LOWER,
-                TICK_UPPER,
+                tickLower,
+                tickUpper,
                 liquidity,
                 amount0Max,
                 amount1Max,
@@ -175,7 +175,7 @@ contract SubscriptionMarketplace {
             pool.currency0,
             i_usdc,
             pool.currency1,
-            IERC20(address(i_wrappedSubscription))
+            IERC20(wrappedSubscription)
         );
 
         // 9. Execute the multicall
@@ -186,6 +186,53 @@ contract SubscriptionMarketplace {
             revert SubscriptionMarketplace__FailedToCreatePool();
         }
     }
+
+    function mintPosition(
+        // Pool parameters
+        PoolKey calldata poolKey,
+        // Position parameters
+        int24 tickLower,
+        int24 tickUpper,
+        uint256 liquidity,
+        uint256 amount0Max,
+        uint256 amount1Max,
+        address recipient,
+        bytes memory hookData // encoded tokenId
+    ) external {
+        (
+            bytes memory actions,
+            bytes[] memory mintParams
+        ) = _mintLiquidityParams(
+                poolKey,
+                tickLower,
+                tickUpper,
+                liquidity,
+                amount0Max,
+                amount1Max,
+                recipient,
+                hookData
+            );
+
+        uint256 deadline = block.timestamp + DEADLINE_INTERVAL;
+        uint256 valueToPass = poolKey.currency0.isAddressZero()
+            ? amount0Max
+            : 0;
+
+        i_positionManager.modifyLiquidities{value: valueToPass}(
+            abi.encode(actions, mintParams),
+            deadline
+        );
+
+        emit PositionMinted(poolKey.toId());
+    }
+
+    function increaseLiquidity() external {}
+
+    function decreaseLiquidity() external {}
+
+    function collectFees() external {}
+
+    function burnPosition() external {}
 
     /*//////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
