@@ -258,22 +258,22 @@ contract SubscriptionMarketplace {
         Currency currency1 = Currency.wrap(address(wrappedSubscription));
         if (currency0.toId() > currency1.toId()) {
             (currency0, currency1) = (currency1, currency0);
-
-            if (useFeesAsLiquidity) {
-                // Using CLOSE_CURRENCY for automatic handling of each token
-                params[1] = abi.encode(currency0); // Handle token0
-                params[2] = abi.encode(currency1); // Handle token1
-            } else {
-                // Standard SETTLE_PAIR for providing tokens
-                params[1] = abi.encode(currency0, currency1);
-            }
-
-            // Execute the increase
-            i_positionManager.modifyLiquidities(
-                abi.encode(actions, params),
-                block.timestamp + DEADLINE_INTERVAL
-            );
         }
+
+        if (useFeesAsLiquidity) {
+            // Using CLOSE_CURRENCY for automatic handling of each token
+            params[1] = abi.encode(currency0); // Handle token0
+            params[2] = abi.encode(currency1); // Handle token1
+        } else {
+            // Standard SETTLE_PAIR for providing tokens
+            params[1] = abi.encode(currency0, currency1);
+        }
+
+        // Execute the increase
+        i_positionManager.modifyLiquidities(
+            abi.encode(actions, params),
+            block.timestamp + DEADLINE_INTERVAL
+        );
     }
 
     /// @notice Removes liquidity from a position
@@ -311,16 +311,16 @@ contract SubscriptionMarketplace {
         Currency currency1 = Currency.wrap(address(wrappedSubscription));
         if (currency0.toId() > currency1.toId()) {
             (currency0, currency1) = (currency1, currency0);
-
-            // Parameters for TAKE_PAIR
-            params[1] = abi.encode(currency0, currency1, recipient);
-
-            // Execute the decrease
-            i_positionManager.modifyLiquidities(
-                abi.encode(actions, params),
-                block.timestamp + DEADLINE_INTERVAL
-            );
         }
+
+        // Parameters for TAKE_PAIR
+        params[1] = abi.encode(currency0, currency1, recipient);
+
+        // Execute the decrease
+        i_positionManager.modifyLiquidities(
+            abi.encode(actions, params),
+            block.timestamp + DEADLINE_INTERVAL
+        );
     }
 
     // In v4’s Position Manager, there isn’t a dedicated COLLECT command.
@@ -358,19 +358,67 @@ contract SubscriptionMarketplace {
         Currency currency1 = Currency.wrap(address(wrappedSubscription));
         if (currency0.toId() > currency1.toId()) {
             (currency0, currency1) = (currency1, currency0);
-
-            // Standard TAKE_PAIR for receiving all fees
-            params[1] = abi.encode(currency0, currency1, recipient);
-
-            // Execute fee collection
-            i_positionManager.modifyLiquidities(
-                abi.encode(actions, params),
-                block.timestamp + DEADLINE_INTERVAL
-            );
         }
+
+        // Standard TAKE_PAIR for receiving all fees
+        params[1] = abi.encode(currency0, currency1, recipient);
+
+        // Execute fee collection
+        i_positionManager.modifyLiquidities(
+            abi.encode(actions, params),
+            block.timestamp + DEADLINE_INTERVAL
+        );
     }
 
-    function burnPosition() external {}
+    /// @notice Burns a position and receives all tokens
+    /// @param tokenId The ID of the position to burn
+    /// @param recipient Address that will receive the tokens
+    /// @param amount0Min Minimum amount of token0 to receive
+    /// @param amount1Min Minimum amount of token1 to receive
+    function burnPosition(
+        address wrappedSubscription,
+        uint256 tokenId,
+        address recipient,
+        uint256 amount0Min,
+        uint256 amount1Min
+    ) external {
+        // Define the sequence of operations:
+        // 1. BURN_POSITION - Removes the position and creates positive deltas
+        // 2. TAKE_PAIR - Sends all tokens to the recipient
+        bytes memory actions = abi.encodePacked(
+            Actions.BURN_POSITION,
+            Actions.TAKE_PAIR
+        );
+
+        bytes[] memory params = new bytes[](2);
+
+        // Parameters for BURN_POSITION
+        params[0] = abi.encode(
+            tokenId, // Position to burn
+            amount0Min, // Minimum token0 to receive
+            amount1Min, // Minimum token1 to receive
+            "" // No hook data needed
+        );
+
+        Currency currency0 = Currency.wrap(address(i_usdc));
+        Currency currency1 = Currency.wrap(address(wrappedSubscription));
+        if (currency0.toId() > currency1.toId()) {
+            (currency0, currency1) = (currency1, currency0);
+        }
+
+        // Parameters for TAKE_PAIR - where tokens will go
+        params[1] = abi.encode(
+            currency0, // First token
+            currency1, // Second token
+            recipient // Who receives the tokens
+        );
+
+        // Execute fee collection
+        i_positionManager.modifyLiquidities(
+            abi.encode(actions, params),
+            block.timestamp + DEADLINE_INTERVAL
+        );
+    }
 
     /*//////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
