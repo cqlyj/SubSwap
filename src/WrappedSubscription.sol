@@ -8,6 +8,8 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 contract WrappedSubscription is ERC20, Ownable {
     using Strings for uint256;
 
+    uint256 private s_tokenID;
+
     constructor(
         uint256 _tokenID
     )
@@ -18,7 +20,9 @@ contract WrappedSubscription is ERC20, Ownable {
             string(abi.encodePacked("wSub_", _tokenID.toString()))
         )
         Ownable(msg.sender)
-    {}
+    {
+        s_tokenID = _tokenID;
+    }
 
     function mint(address to, uint256 amount) external onlyOwner {
         _mint(to, amount);
@@ -26,5 +30,9 @@ contract WrappedSubscription is ERC20, Ownable {
 
     function burn(address from, uint256 amount) external onlyOwner {
         _burn(from, amount);
+    }
+
+    function tokenId() external view returns (uint256) {
+        return s_tokenID;
     }
 }
