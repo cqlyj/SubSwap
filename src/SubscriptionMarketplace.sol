@@ -13,14 +13,21 @@ import {Actions} from "v4-periphery/src/libraries/Actions.sol";
 import {LiquidityAmounts} from "v4-core/test/utils/LiquidityAmounts.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
+import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
+import {UniversalRouter} from "@uniswap/universal-router/contracts/UniversalRouter.sol";
+import {Commands} from "@uniswap/universal-router/contracts/libraries/Commands.sol";
+import {WrappedSubscription} from "./WrappedSubscription.sol";
+// For now this import is commented out because Uniswap team needs to fix some issues for this to work
+// import {IV4Router} from "v4-periphery/src/interfaces/IV4Router.sol";
 
-// import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
+// @update this Interface might not be correct
+import {IV4Router} from "./interfaces/IV4Router.sol";
 
 contract SubscriptionMarketplace {
     using SafeERC20 for IERC20;
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
-    // using StateLibrary for IPoolManager;
+    using StateLibrary for IPoolManager;
 
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
@@ -33,6 +40,7 @@ contract SubscriptionMarketplace {
     // Deployed Permit2 bytecode at
     // https://etherscan.io/address/0x000000000022D473030F116dDEE9F6B43aC78BA3#code
     IAllowanceTransfer private immutable i_permit2;
+    UniversalRouter private immutable i_router;
     int24 private constant TICK_SPACING = 60;
     uint256 private constant DEADLINE_INTERVAL = 60;
 
@@ -45,6 +53,7 @@ contract SubscriptionMarketplace {
     //////////////////////////////////////////////////////////////*/
 
     error SubscriptionMarketplace__FailedToCreatePool();
+    error SubscriptionMarketplace__InvalidAmount();
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -52,6 +61,7 @@ contract SubscriptionMarketplace {
 
     event PoolCreated(PoolId indexed poolId);
     event PositionMinted(PoolId indexed poolId, uint256 tokenId);
+    event SubscriptionPurchased();
 
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
@@ -62,13 +72,15 @@ contract SubscriptionMarketplace {
         address _usdc,
         address _defaultHooks,
         address _positionManager,
-        address _permit2
+        address _permit2,
+        address _router
     ) {
         i_poolManager = IPoolManager(_poolManager);
         i_usdc = IERC20(_usdc);
         i_defaultHooks = IHooks(_defaultHooks);
         i_positionManager = PositionManager(payable(_positionManager));
         i_permit2 = IAllowanceTransfer(_permit2);
+        i_router = UniversalRouter(payable(_router));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -420,9 +432,86 @@ contract SubscriptionMarketplace {
         );
     }
 
+    function buySubscription(
+        PoolKey memory poolKey,
+        address wrappedSubscription,
+        uint128 maxAmountIn,
+        uint128 amountOut // Actually it's always 1
+    ) external {
+        if (amountOut == 0) revert SubscriptionMarketplace__InvalidAmount();
+
+        _approveTokenWithPermit2(
+            address(i_usdc),
+            maxAmountIn,
+            type(uint48).max
+        );
+
+        // Encode the Universal Router command
+        bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
+        bytes[] memory inputs = new bytes[](1);
+
+        // Encode V4Router actions
+
+        // Exact Input Swaps:
+        // Use this swap-type when you know the exact amount of tokens you want to swap in, and you're willing to accept any amount of output tokens above your minimum.
+        // This is common when you want to sell a specific amount of tokens.
+
+        // Exact Output Swaps:
+        // Use this swap-type when you need a specific amount of output tokens, and you're willing to spend up to a maximum amount of input tokens.
+        // This is useful when you need to acquire a precise amount of tokens, for example, to repay a loan or meet a specific requirement.
+        bytes memory actions = abi.encodePacked(
+            uint8(Actions.SWAP_EXACT_OUT_SINGLE),
+            uint8(Actions.SETTLE_ALL),
+            uint8(Actions.TAKE_ALL)
+        );
+
+        // Encode tokenId in hook data
+        bytes memory hookData = abi.encode(
+            WrappedSubscription(wrappedSubscription).tokenId()
+        );
+
+        // Prepare parameters for each action
+        bytes[] memory params = new bytes[](3);
+        // First parameter: swap configuration
+        params[0] = abi.encode(
+            IV4Router.ExactOutputSingleParams({
+                poolKey: poolKey,
+                zeroForOne: true, // true if we're swapping token0 for token1: USDC => NFT
+                amountOut: amountOut,
+                amountInMaximum: maxAmountIn,
+                sqrtPriceLimitX96: 0, // No price limit
+                hookData: hookData
+            })
+        );
+        // Second parameter: specify input tokens for the swap
+        // encode SETTLE_ALL parameters
+        params[1] = abi.encode(poolKey.currency0, maxAmountIn);
+        params[2] = abi.encode(poolKey.currency1, amountOut);
+
+        // Combine actions and params into inputs
+        inputs[0] = abi.encode(actions, params);
+
+        // Execute the swap
+        // The block.timestamp deadline parameter ensures the transaction will be executed in the current block.
+        i_router.execute(commands, inputs, block.timestamp);
+
+        emit SubscriptionPurchased();
+    }
+
+    function sellSubscription() external returns (uint256 amountOut) {}
+
     /*//////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    function _approveTokenWithPermit2(
+        address token,
+        uint160 amount,
+        uint48 expiration
+    ) internal {
+        IERC20(token).approve(address(i_permit2), type(uint256).max);
+        i_permit2.approve(token, address(i_router), amount, expiration);
+    }
 
     function _initializePool(
         PoolKey memory pool,
