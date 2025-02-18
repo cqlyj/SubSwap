@@ -13,3 +13,15 @@
 [submodule "lib/uniswap-hooks"]
 	path = lib/uniswap-hooks
 	url = https://github.com/OpenZeppelin/uniswap-hooks
+[submodule "lib/permit2"]
+	path = lib/permit2
+	url = https://github.com/uniswap/permit2
+[submodule "lib/universal-router"]
+	path = lib/universal-router
+	url = https://github.com/uniswap/universal-router
+[submodule "solmate"]
+	path = solmate
+	url = https://github.com/transmissions11/solmate
+[submodule "permit2"]
+	path = permit2
+	url = https://github.com/Uniswap/permit2
