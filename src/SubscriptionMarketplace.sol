@@ -14,10 +14,13 @@ import {LiquidityAmounts} from "v4-core/test/utils/LiquidityAmounts.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 
+// import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
+
 contract SubscriptionMarketplace {
     using SafeERC20 for IERC20;
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
+    // using StateLibrary for IPoolManager;
 
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
@@ -208,7 +211,70 @@ contract SubscriptionMarketplace {
         emit PositionMinted(poolKey.toId(), tokenId);
     }
 
-    function increaseLiquidity() external {}
+    /// @notice Increases liquidity in an existing position
+    /// @param tokenId The ID of the position
+    /// @param liquidityIncrease Amount of liquidity to add
+    /// @param amount0Max Maximum amount of token0 to spend
+    /// @param amount1Max Maximum amount of token1 to spend
+    /// @param useFeesAsLiquidity Whether to use accumulated fees
+    function increaseLiquidity(
+        address wrappedSubscription,
+        uint256 tokenId,
+        uint128 liquidityIncrease,
+        uint256 amount0Max,
+        uint256 amount1Max,
+        bool useFeesAsLiquidity
+    ) external {
+        // Define the sequence of operations:
+        // If using fees: Handle potential fee conversion
+        // If not: Standard liquidity addition
+        bytes memory actions;
+        if (useFeesAsLiquidity) {
+            actions = abi.encodePacked(
+                Actions.INCREASE_LIQUIDITY, // Add liquidity
+                Actions.CLOSE_CURRENCY, // Handle token0 (might need to pay or receive)
+                Actions.CLOSE_CURRENCY // Handle token1 (might need to pay or receive)
+            );
+        } else {
+            actions = abi.encodePacked(
+                Actions.INCREASE_LIQUIDITY, // Add liquidity
+                Actions.SETTLE_PAIR // Provide tokens
+            );
+        }
+
+        // Number of parameters depends on our strategy
+        bytes[] memory params = new bytes[](useFeesAsLiquidity ? 3 : 2);
+
+        // Parameters for INCREASE_LIQUIDITY
+        params[0] = abi.encode(
+            tokenId, // Position to increase
+            liquidityIncrease, // Amount to add
+            amount0Max, // Maximum token0 to spend
+            amount1Max, // Maximum token1 to spend
+            "" // No hook data needed
+        );
+
+        Currency currency0 = Currency.wrap(address(i_usdc));
+        Currency currency1 = Currency.wrap(address(wrappedSubscription));
+        if (currency0.toId() > currency1.toId()) {
+            (currency0, currency1) = (currency1, currency0);
+
+            if (useFeesAsLiquidity) {
+                // Using CLOSE_CURRENCY for automatic handling of each token
+                params[1] = abi.encode(currency0); // Handle token0
+                params[2] = abi.encode(currency1); // Handle token1
+            } else {
+                // Standard SETTLE_PAIR for providing tokens
+                params[1] = abi.encode(currency0, currency1);
+            }
+
+            // Execute the increase
+            i_positionManager.modifyLiquidities(
+                abi.encode(actions, params),
+                block.timestamp + DEADLINE_INTERVAL
+            );
+        }
+    }
 
     function decreaseLiquidity() external {}
 
