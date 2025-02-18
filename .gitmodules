@@ -19,9 +19,3 @@
 [submodule "lib/universal-router"]
 	path = lib/universal-router
 	url = https://github.com/uniswap/universal-router
-[submodule "solmate"]
-	path = solmate
-	url = https://github.com/transmissions11/solmate
-[submodule "permit2"]
-	path = permit2
-	url = https://github.com/Uniswap/permit2
