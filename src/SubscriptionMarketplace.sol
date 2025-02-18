@@ -323,7 +323,52 @@ contract SubscriptionMarketplace {
         }
     }
 
-    function collectFees() external {}
+    // In v4’s Position Manager, there isn’t a dedicated COLLECT command.
+    // Instead, fees are collected by using DECREASE_LIQUIDITY with zero liquidity.
+    // This pattern leverages the fact that fees are automatically credited during liquidity operations.
+
+    /// @notice Collects accumulated fees from a position
+    /// @param tokenId The ID of the position to collect fees from
+    /// @param recipient Address that will receive the fees
+    function collectFees(
+        address wrappedSubscription,
+        uint256 tokenId,
+        address recipient
+    ) external {
+        // Define the sequence of operations
+        bytes memory actions = abi.encodePacked(
+            Actions.DECREASE_LIQUIDITY, // Remove liquidity
+            Actions.TAKE_PAIR // Receive both tokens
+        );
+
+        // Prepare parameters array
+        bytes[] memory params = new bytes[](2);
+
+        // Parameters for DECREASE_LIQUIDITY
+        // All zeros since we're only collecting fees
+        params[0] = abi.encode(
+            tokenId, // Position to collect from
+            0, // No liquidity change
+            0, // No minimum for token0 (fees can't be manipulated)
+            0, // No minimum for token1
+            "" // No hook data needed
+        );
+
+        Currency currency0 = Currency.wrap(address(i_usdc));
+        Currency currency1 = Currency.wrap(address(wrappedSubscription));
+        if (currency0.toId() > currency1.toId()) {
+            (currency0, currency1) = (currency1, currency0);
+
+            // Standard TAKE_PAIR for receiving all fees
+            params[1] = abi.encode(currency0, currency1, recipient);
+
+            // Execute fee collection
+            i_positionManager.modifyLiquidities(
+                abi.encode(actions, params),
+                block.timestamp + DEADLINE_INTERVAL
+            );
+        }
+    }
 
     function burnPosition() external {}
 
