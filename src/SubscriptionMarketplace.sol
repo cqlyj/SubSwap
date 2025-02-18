@@ -276,7 +276,52 @@ contract SubscriptionMarketplace {
         }
     }
 
-    function decreaseLiquidity() external {}
+    /// @notice Removes liquidity from a position
+    /// @param tokenId The ID of the position
+    /// @param liquidityDecrease Amount of liquidity to remove
+    /// @param amount0Min Minimum amount of token0 to receive
+    /// @param amount1Min Minimum amount of token1 to receive
+    /// @param recipient Address to receive the tokens
+    function decreaseLiquidity(
+        address wrappedSubscription,
+        uint256 tokenId,
+        uint128 liquidityDecrease,
+        uint256 amount0Min,
+        uint256 amount1Min,
+        address recipient
+    ) external {
+        // When decreasing liquidity, you’ll receive tokens, so it's most common to receive a pair of tokens:
+        bytes memory actions = abi.encodePacked(
+            Actions.DECREASE_LIQUIDITY,
+            Actions.TAKE_PAIR
+        );
+
+        bytes[] memory params = new bytes[](2);
+
+        // Parameters for DECREASE_LIQUIDITY
+        params[0] = abi.encode(
+            tokenId, // Position to decrease
+            liquidityDecrease, // Amount to remove
+            amount0Min, // Minimum token0 to receive
+            amount1Min, // Minimum token1 to receive
+            "" // No hook data needed
+        );
+
+        Currency currency0 = Currency.wrap(address(i_usdc));
+        Currency currency1 = Currency.wrap(address(wrappedSubscription));
+        if (currency0.toId() > currency1.toId()) {
+            (currency0, currency1) = (currency1, currency0);
+
+            // Parameters for TAKE_PAIR
+            params[1] = abi.encode(currency0, currency1, recipient);
+
+            // Execute the decrease
+            i_positionManager.modifyLiquidities(
+                abi.encode(actions, params),
+                block.timestamp + DEADLINE_INTERVAL
+            );
+        }
+    }
 
     function collectFees() external {}
 
