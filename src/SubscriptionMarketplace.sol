@@ -694,4 +694,86 @@ contract SubscriptionMarketplace {
     /*//////////////////////////////////////////////////////////////
                                 GETTERS
     //////////////////////////////////////////////////////////////*/
+
+    function getPoolManager() external view returns (IPoolManager) {
+        return i_poolManager;
+    }
+
+    function getUSDC() external view returns (IERC20) {
+        return i_usdc;
+    }
+
+    function getDefaultHooks() external view returns (IHooks) {
+        return i_defaultHooks;
+    }
+
+    function getPositionManager() external view returns (PositionManager) {
+        return i_positionManager;
+    }
+
+    function getPermit2() external view returns (IAllowanceTransfer) {
+        return i_permit2;
+    }
+
+    function getRouter() external view returns (UniversalRouter) {
+        return i_router;
+    }
+
+    function getTickSpacing() external pure returns (int24) {
+        return TICK_SPACING;
+    }
+
+    function getDeadlineInterval() external pure returns (uint256) {
+        return DEADLINE_INTERVAL;
+    }
+
+    function getPoolId(PoolKey memory poolKey) external pure returns (PoolId) {
+        return poolKey.toId();
+    }
+
+    function getPoolState(
+        PoolKey calldata key
+    )
+        external
+        view
+        returns (
+            uint160 sqrtPriceX96,
+            int24 tick,
+            uint24 protocolFee,
+            uint24 lpFee
+        )
+    {
+        return i_poolManager.getSlot0(key.toId());
+    }
+
+    function getPoolLiquidity(
+        PoolKey calldata key
+    ) external view returns (uint128 liquidity) {
+        return i_poolManager.getLiquidity(key.toId());
+    }
+
+    function getPositionInfo(
+        PoolKey calldata key,
+        address owner,
+        int24 tickLower,
+        int24 tickUpper,
+        bytes32 salt
+    )
+        external
+        view
+        returns (
+            uint128 liquidity,
+            uint256 feeGrowthInside0LastX128,
+            uint256 feeGrowthInside1LastX128
+        )
+    {
+        return
+            i_poolManager.getPositionInfo(
+                key.toId(),
+                owner,
+                tickLower,
+                tickUpper,
+                bytes32(salt)
+            );
+    }
 }
