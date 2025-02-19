@@ -54,6 +54,7 @@ contract SubscriptionMarketplace {
 
     error SubscriptionMarketplace__FailedToCreatePool();
     error SubscriptionMarketplace__InvalidAmount();
+    error SubscriptionMarketplace__LessThanMinimumAmountOut();
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -62,6 +63,7 @@ contract SubscriptionMarketplace {
     event PoolCreated(PoolId indexed poolId);
     event PositionMinted(PoolId indexed poolId, uint256 tokenId);
     event SubscriptionPurchased();
+    event SubscriptionSold();
 
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
@@ -495,10 +497,84 @@ contract SubscriptionMarketplace {
         // The block.timestamp deadline parameter ensures the transaction will be executed in the current block.
         i_router.execute(commands, inputs, block.timestamp);
 
+        // @update
+        // we may need to check the balance of the wrappedSubscription
+
         emit SubscriptionPurchased();
     }
 
-    function sellSubscription() external returns (uint256 amountOut) {}
+    function sellSubscription(
+        PoolKey memory poolKey,
+        address wrappedSubscription,
+        uint128 amountIn,
+        uint128 minAmountOut
+    ) external returns (uint256 amountOut) {
+        if (amountIn == 0) revert SubscriptionMarketplace__InvalidAmount();
+
+        _approveTokenWithPermit2(
+            address(wrappedSubscription),
+            amountIn,
+            type(uint48).max
+        );
+
+        // Encode the Universal Router command
+        bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
+        bytes[] memory inputs = new bytes[](1);
+
+        // Encode V4Router actions
+
+        // Exact Input Swaps:
+        // Use this swap-type when you know the exact amount of tokens you want to swap in, and you're willing to accept any amount of output tokens above your minimum.
+        // This is common when you want to sell a specific amount of tokens.
+
+        // Exact Output Swaps:
+        // Use this swap-type when you need a specific amount of output tokens, and you're willing to spend up to a maximum amount of input tokens.
+        // This is useful when you need to acquire a precise amount of tokens, for example, to repay a loan or meet a specific requirement.
+        bytes memory actions = abi.encodePacked(
+            uint8(Actions.SWAP_EXACT_IN_SINGLE),
+            uint8(Actions.SETTLE_ALL),
+            uint8(Actions.TAKE_ALL)
+        );
+
+        // Encode tokenId in hook data
+        bytes memory hookData = abi.encode(
+            WrappedSubscription(wrappedSubscription).tokenId()
+        );
+
+        // Prepare parameters for each action
+        bytes[] memory params = new bytes[](3);
+        // First parameter: swap configuration
+        params[0] = abi.encode(
+            IV4Router.ExactInputSingleParams({
+                poolKey: poolKey,
+                zeroForOne: true, // true if we're swapping token0 for token1: NFT => USDC
+                amountIn: amountIn,
+                amountOutMinimum: minAmountOut,
+                sqrtPriceLimitX96: 0, // No price limit
+                hookData: hookData
+            })
+        );
+        // Second parameter: specify input tokens for the swap
+        // encode SETTLE_ALL parameters
+        params[1] = abi.encode(poolKey.currency1, amountIn);
+        params[2] = abi.encode(poolKey.currency0, minAmountOut);
+
+        // Combine actions and params into inputs
+        inputs[0] = abi.encode(actions, params);
+
+        // Execute the swap
+        // The block.timestamp deadline parameter ensures the transaction will be
+        // executed in the current block.
+        i_router.execute(commands, inputs, block.timestamp);
+
+        amountOut = IERC20(address(i_usdc)).balanceOf(address(this));
+        if (amountOut < minAmountOut)
+            revert SubscriptionMarketplace__LessThanMinimumAmountOut();
+
+        emit SubscriptionSold();
+
+        return amountOut;
+    }
 
     /*//////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
