@@ -133,4 +133,14 @@ contract SubscriptionWrapper is IERC1155Receiver {
     ) public pure override returns (bool) {
         return interfaceId == type(IERC1155Receiver).interfaceId;
     }
+
+    /*//////////////////////////////////////////////////////////////
+                                GETTERS
+    //////////////////////////////////////////////////////////////*/
+
+    function getWrappedToken(
+        uint256 tokenId
+    ) external view returns (WrappedSubscription) {
+        return s_tokenIdToWrappedToken[tokenId];
+    }
 }
