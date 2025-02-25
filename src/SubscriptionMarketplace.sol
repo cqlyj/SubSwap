@@ -205,6 +205,7 @@ contract SubscriptionMarketplace {
         // }
 
         // 9. Execute the multicall
+        // This is the real command that creates the pool
 
         // try PositionManager(i_positionManager).multicall(params) {
         //     emit PoolCreated(pool.toId());
@@ -218,14 +219,22 @@ contract SubscriptionMarketplace {
         // Pool parameters
         PoolKey calldata poolKey,
         // Position parameters
-        int24 tickLower,
-        int24 tickUpper,
-        uint256 liquidity,
-        uint256 amount0Max,
-        uint256 amount1Max,
-        address recipient,
+        int24 tickLower, // the lower tick boundary of the position
+        int24 tickUpper, // the upper tick boundary of the position
+        uint256 liquidity, // the amount of liquidity units to mint
+        uint256 amount0Max, // the maximum amount of currency0 msg.sender is willing to pay
+        uint256 amount1Max, // the maximum amount of currency1 msg.sender is willing to pay
+        address recipient, // the address that will receive the liquidity position (ERC-721)
         bytes calldata hookData // encoded tokenId
-    ) external returns (uint256 tokenId) {
+    )
+        external
+        returns (
+            bytes memory params,
+            uint256 deadline,
+            uint256 valueToPass,
+            uint256 tokenId
+        )
+    {
         (
             bytes memory actions,
             bytes[] memory mintParams
@@ -240,18 +249,23 @@ contract SubscriptionMarketplace {
                 hookData
             );
 
-        uint256 deadline = block.timestamp + DEADLINE_INTERVAL;
-        uint256 valueToPass = poolKey.currency0.isAddressZero()
-            ? amount0Max
-            : 0;
+        deadline = block.timestamp + DEADLINE_INTERVAL;
+        valueToPass = poolKey.currency0.isAddressZero() ? amount0Max : 0;
 
         tokenId = i_positionManager.nextTokenId();
-        i_positionManager.modifyLiquidities{value: valueToPass}(
-            abi.encode(actions, mintParams),
-            deadline
-        );
+
+        // i_positionManager.modifyLiquidities{value: valueToPass}(
+        //     abi.encode(actions, mintParams),
+        //     deadline
+        // );
 
         emit PositionMinted(poolKey.toId(), tokenId);
+        return (
+            abi.encode(actions, mintParams),
+            deadline,
+            valueToPass,
+            tokenId
+        );
     }
 
     /// @notice Increases liquidity in an existing position
@@ -465,7 +479,7 @@ contract SubscriptionMarketplace {
 
     function buySubscription(
         PoolKey memory poolKey,
-        address wrappedSubscription,
+        uint256 tokenId, // the exact tokenId of the subscription you want to buy
         uint128 maxAmountIn,
         uint128 amountOut // Actually it's always 1
     ) external {
@@ -497,9 +511,7 @@ contract SubscriptionMarketplace {
         );
 
         // Encode tokenId in hook data
-        bytes memory hookData = abi.encode(
-            WrappedSubscription(wrappedSubscription).tokenId()
-        );
+        bytes memory hookData = abi.encode(tokenId);
 
         // Prepare parameters for each action
         bytes[] memory params = new bytes[](3);
@@ -535,6 +547,7 @@ contract SubscriptionMarketplace {
     function sellSubscription(
         PoolKey memory poolKey,
         address wrappedSubscription,
+        uint256 tokenId,
         uint128 amountIn,
         uint128 minAmountOut
     ) external returns (uint256 amountOut) {
@@ -566,9 +579,7 @@ contract SubscriptionMarketplace {
         );
 
         // Encode tokenId in hook data
-        bytes memory hookData = abi.encode(
-            WrappedSubscription(wrappedSubscription).tokenId()
-        );
+        bytes memory hookData = abi.encode(tokenId);
 
         // Prepare parameters for each action
         bytes[] memory params = new bytes[](3);
@@ -778,5 +789,29 @@ contract SubscriptionMarketplace {
                 tickUpper,
                 bytes32(salt)
             );
+    }
+
+    function getPoolKey(
+        address wrappedSubscription,
+        uint24 swapFee,
+        IHooks hooks
+    ) external view returns (PoolKey memory) {
+        Currency currency0 = Currency.wrap(address(i_usdc));
+        Currency currency1 = Currency.wrap(address(wrappedSubscription));
+        if (currency0.toId() > currency1.toId()) {
+            (currency0, currency1) = (currency1, currency0);
+        }
+        if (hooks == IHooks(address(0))) {
+            hooks = i_defaultHooks;
+        }
+
+        return
+            PoolKey({
+                currency0: currency0,
+                currency1: currency1,
+                fee: swapFee,
+                tickSpacing: TICK_SPACING,
+                hooks: hooks
+            });
     }
 }
