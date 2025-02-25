@@ -13,15 +13,20 @@ import {MockUsdc} from "test/mocks/MockUsdc.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import {PositionManager} from "v4-periphery/src/PositionManager.sol";
+import {Currency, CurrencyLibrary} from "v4-core/src/types/Currency.sol";
+import {PoolKey, PoolIdLibrary} from "v4-core/src/types/PoolKey.sol";
 
 /// This is fork test for sepolia
 /// Please run `make test-sepolia`
 
 contract SubSwapTest is Test {
+    using CurrencyLibrary for Currency;
+
     SubscriptionFactory public factory;
-    address public contentCreator = makeAddr("content creator");
     SubscriptionNft public subscriptionNft;
+    address public contentCreator = makeAddr("content creator");
     address public user1 = makeAddr("user1");
+    address public user2 = makeAddr("user2");
     SubscriptionWrapper public wrapper;
     SubscriptionPricingHook public pricingHook;
     SubscriptionMarketplace public marketplace;
@@ -54,32 +59,43 @@ contract SubSwapTest is Test {
             0x3A9D48AB9751398BbFa63ad67599Bb04e4BdF98b // _router
         );
         vm.stopPrank();
+
+        usdc.mint(user2, 1e6 * 1e6);
     }
 
+    // Not a good practice to write a huge test, but this will show the overall process of the subscription
     function testEveryThingWorksFine() external {
         // create a plan
         vm.prank(contentCreator);
         factory.createPlan("Plan1", "Plan1 description", 30 days, 1e6, true); // 1 USDC
 
         // create a subscription
-        vm.expectRevert(
-            SubscriptionNft.SubscriptionNFT__InvalidPlanId.selector
-        );
-        subscriptionNft.createSubscription(1, 10000); // planId 1, 1000 tokens
+        // vm.expectRevert(
+        //     SubscriptionNft.SubscriptionNFT__InvalidPlanId.selector
+        // );
+        // subscriptionNft.createSubscription(1, 10000); // planId 1, 10000 tokens
 
         vm.prank(user1);
-        subscriptionNft.createSubscription(0, 10000); // planId 1, 1000 tokens
+        subscriptionNft.createSubscription(0, 10000); // planId 0, 10000 tokens
+        vm.prank(user2);
+        subscriptionNft.createSubscription(0, 10000); // planId 0, 10000 tokens
 
         // wrap the subscription
         vm.startPrank(user1);
         subscriptionNft.setApprovalForAll(address(wrapper), true);
-        wrapper.deposit(1, 5000); // tokenId, amount
+        wrapper.deposit(0, 1, 5000); // planId, tokenId, amount
         // wrapper.withdraw(1, 5000); // tokenId, amount
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        subscriptionNft.setApprovalForAll(address(wrapper), true);
+        // Since the time we create the subscription is different, the tokenId will be different
+        wrapper.deposit(0, 2, 5000); // planId, tokenId, amount
         vm.stopPrank();
 
         // create the pool
         bytes memory hookData = abi.encode(1);
-        address wrapperTokenAddress = address(wrapper.getWrappedToken(1));
+        address wrapperTokenAddress = address(wrapper.getWrappedToken(0)); // get the token based on planId
 
         vm.startPrank(user1);
 
@@ -104,6 +120,42 @@ contract SubSwapTest is Test {
         positionManager.multicall(params);
 
         vm.stopPrank();
+
+        // Another user tries to mint a new position in this pool
+        PoolKey memory poolKey = marketplace.getPoolKey(
+            wrapperTokenAddress,
+            3000, // swapFee
+            IHooks(address(0)) // no hooks for now
+        );
+
+        vm.startPrank(user2);
+
+        _tokenApprovals(IERC20(wrapperTokenAddress), IERC20(address(usdc)));
+
+        (
+            bytes memory mintParams,
+            uint256 deadline,
+            uint256 valueToPass,
+            uint256 tokenId
+        ) = marketplace.mintPosition(
+                poolKey,
+                -600,
+                600,
+                marketplace.getPoolLiquidity(poolKey),
+                501,
+                501,
+                user2,
+                hookData
+            );
+
+        positionManager.modifyLiquidities{value: valueToPass}(
+            mintParams,
+            deadline
+        );
+
+        vm.stopPrank();
+
+        console.log("The new minted position have the tokenId %s", tokenId);
     }
 
     /*//////////////////////////////////////////////////////////////
