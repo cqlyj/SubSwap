@@ -214,6 +214,22 @@ contract SubSwapTest is Test {
         );
 
         vm.stopPrank();
+
+        // Let user2 burn the position
+        vm.startPrank(user2);
+
+        (bytes memory burnParams, uint256 burnDeadline) = marketplace
+            .generateBurnPositionParams(
+                wrapperTokenAddress,
+                user2TokenId,
+                user2,
+                0, // Minimum amount of token0 to receive
+                0 // Minimum amount of token1 to receive
+            );
+
+        positionManager.modifyLiquidities(burnParams, burnDeadline);
+
+        vm.stopPrank();
     }
 
     /*//////////////////////////////////////////////////////////////
