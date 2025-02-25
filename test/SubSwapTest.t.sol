@@ -64,6 +64,7 @@ contract SubSwapTest is Test {
     }
 
     // Not a good practice to write a huge test, but this will show the overall process of the subscription
+    // And many magic numbers here, replace them with constants makes the code more readable
     function testEveryThingWorksFine() external {
         // create a plan
         vm.prank(contentCreator);
@@ -136,8 +137,8 @@ contract SubSwapTest is Test {
             bytes memory mintParams,
             uint256 deadline,
             uint256 valueToPass,
-            uint256 tokenId
-        ) = marketplace.mintPosition(
+            uint256 user2TokenId
+        ) = marketplace.generateMintPositionParams(
                 poolKey,
                 -600,
                 600,
@@ -155,7 +156,28 @@ contract SubSwapTest is Test {
 
         vm.stopPrank();
 
-        console.log("The new minted position have the tokenId %s", tokenId);
+        console.log(
+            "The new minted position have the tokenId %s",
+            user2TokenId
+        );
+
+        // Let user2 increaseLiquidity!
+
+        vm.startPrank(user2);
+
+        (bytes memory increaseParams, uint256 increaseDeadline) = marketplace
+            .generateIncreaseLiquidity(
+                wrapperTokenAddress,
+                user2TokenId,
+                2000, // liquidityIncrease,
+                2001, // Maximum amount of token0 to spend
+                2001, // Maximum amount of token1 to spend
+                false // useFeesAsLiquidity Whether to use accumulated fees
+            );
+
+        positionManager.modifyLiquidities(increaseParams, increaseDeadline);
+
+        vm.stopPrank();
     }
 
     /*//////////////////////////////////////////////////////////////
