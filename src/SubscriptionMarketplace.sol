@@ -89,7 +89,7 @@ contract SubscriptionMarketplace {
                      EXTERNAL AND PUBLIC FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    function createPool(
+    function generateCreatePoolParams(
         address wrappedSubscription,
         uint24 swapFee,
         IHooks hooks,
@@ -101,7 +101,7 @@ contract SubscriptionMarketplace {
         uint256 amount0Max,
         uint256 amount1Max,
         bytes calldata hookData // encoded tokenId
-    ) external {
+    ) external view returns (bytes[] memory) {
         // 1. Initialize the parameters provided to multicall()
 
         // The first call, params[0], will encode initializePool parameters
@@ -165,24 +165,53 @@ contract SubscriptionMarketplace {
             deadline
         );
 
+        // The following two steps should be done after get the params
+
         // 8. Approve the tokens
         // PositionManager uses Permit2 for token transfers
 
         // approve permit2 as a spender
-        _tokenApprovals(
-            pool.currency0,
-            i_usdc,
-            pool.currency1,
-            IERC20(wrappedSubscription)
-        );
+        // _tokenApprovals(
+        //     pool.currency0,
+        //     i_usdc,
+        //     pool.currency1,
+        //     IERC20(wrappedSubscription)
+        // );
+
+        // function _tokenApprovals(
+        //     Currency currency0,
+        //     IERC20 token0,
+        //     Currency currency1,
+        //     IERC20 token1
+        // ) public {
+        //     if (!currency0.isAddressZero()) {
+        //         token0.approve(address(i_permit2), type(uint256).max);
+        //         i_permit2.approve(
+        //             address(token0),
+        //             address(i_positionManager),
+        //             type(uint160).max,
+        //             type(uint48).max
+        //         );
+        //     }
+        //     if (!currency1.isAddressZero()) {
+        //         token1.approve(address(i_permit2), type(uint256).max);
+        //         i_permit2.approve(
+        //             address(token1),
+        //             address(i_positionManager),
+        //             type(uint160).max,
+        //             type(uint48).max
+        //         );
+        //     }
+        // }
 
         // 9. Execute the multicall
 
-        try PositionManager(i_positionManager).multicall(params) {
-            emit PoolCreated(pool.toId());
-        } catch {
-            revert SubscriptionMarketplace__FailedToCreatePool();
-        }
+        // try PositionManager(i_positionManager).multicall(params) {
+        //     emit PoolCreated(pool.toId());
+        // } catch {
+        //     revert SubscriptionMarketplace__FailedToCreatePool();
+        // }
+        return params;
     }
 
     function mintPosition(
@@ -663,32 +692,6 @@ contract SubscriptionMarketplace {
         // Creating a position on a pool requires the caller to transfer `currency0` and `currency1` tokens
         params[1] = abi.encode(poolKey.currency0, poolKey.currency1);
         return (actions, params);
-    }
-
-    function _tokenApprovals(
-        Currency currency0,
-        IERC20 token0,
-        Currency currency1,
-        IERC20 token1
-    ) public {
-        if (!currency0.isAddressZero()) {
-            token0.approve(address(i_permit2), type(uint256).max);
-            i_permit2.approve(
-                address(token0),
-                address(i_positionManager),
-                type(uint160).max,
-                type(uint48).max
-            );
-        }
-        if (!currency1.isAddressZero()) {
-            token1.approve(address(i_permit2), type(uint256).max);
-            i_permit2.approve(
-                address(token1),
-                address(i_positionManager),
-                type(uint160).max,
-                type(uint48).max
-            );
-        }
     }
 
     /*//////////////////////////////////////////////////////////////
