@@ -166,7 +166,7 @@ contract SubSwapTest is Test {
         vm.startPrank(user2);
 
         (bytes memory increaseParams, uint256 increaseDeadline) = marketplace
-            .generateIncreaseLiquidity(
+            .generateIncreaseLiquidityParams(
                 wrapperTokenAddress,
                 user2TokenId,
                 2000, // liquidityIncrease,
@@ -176,6 +176,23 @@ contract SubSwapTest is Test {
             );
 
         positionManager.modifyLiquidities(increaseParams, increaseDeadline);
+
+        vm.stopPrank();
+
+        // decrease liquidity back to original
+        vm.startPrank(user2);
+
+        (bytes memory decreaseParams, uint256 decreaseDeadline) = marketplace
+            .generateDecreaseLiquidityParams(
+                wrapperTokenAddress,
+                user2TokenId,
+                2000, // liquidityDecrease,
+                59, // amount0Min
+                59, // amount1Min
+                user2 // recipient
+            );
+
+        positionManager.modifyLiquidities(decreaseParams, decreaseDeadline);
 
         vm.stopPrank();
     }
