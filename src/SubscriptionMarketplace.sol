@@ -397,11 +397,11 @@ contract SubscriptionMarketplace {
     /// @notice Collects accumulated fees from a position
     /// @param tokenId The ID of the position to collect fees from
     /// @param recipient Address that will receive the fees
-    function collectFees(
+    function generateCollectFeesParams(
         address wrappedSubscription,
         uint256 tokenId,
         address recipient
-    ) external {
+    ) external view returns (bytes memory collectFeesParams, uint256 deadline) {
         // Define the sequence of operations
         bytes memory actions = abi.encodePacked(
             uint8(Actions.DECREASE_LIQUIDITY), // Remove liquidity
@@ -431,7 +431,12 @@ contract SubscriptionMarketplace {
         params[1] = abi.encode(currency0, currency1, recipient);
 
         // Execute fee collection
-        i_positionManager.modifyLiquidities(
+        // i_positionManager.modifyLiquidities(
+        //     abi.encode(actions, params),
+        //     block.timestamp + DEADLINE_INTERVAL
+        // );
+
+        return (
             abi.encode(actions, params),
             block.timestamp + DEADLINE_INTERVAL
         );
