@@ -447,13 +447,13 @@ contract SubscriptionMarketplace {
     /// @param recipient Address that will receive the tokens
     /// @param amount0Min Minimum amount of token0 to receive
     /// @param amount1Min Minimum amount of token1 to receive
-    function burnPosition(
+    function generateBurnPositionParams(
         address wrappedSubscription,
         uint256 tokenId,
         address recipient,
         uint256 amount0Min,
         uint256 amount1Min
-    ) external {
+    ) external view returns (bytes memory burnParams, uint256 deadline) {
         // Define the sequence of operations:
         // 1. BURN_POSITION - Removes the position and creates positive deltas
         // 2. TAKE_PAIR - Sends all tokens to the recipient
@@ -486,7 +486,12 @@ contract SubscriptionMarketplace {
         );
 
         // Execute fee collection
-        i_positionManager.modifyLiquidities(
+        // i_positionManager.modifyLiquidities(
+        //     abi.encode(actions, params),
+        //     block.timestamp + DEADLINE_INTERVAL
+        // );
+
+        return (
             abi.encode(actions, params),
             block.timestamp + DEADLINE_INTERVAL
         );
