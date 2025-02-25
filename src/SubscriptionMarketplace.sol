@@ -274,7 +274,7 @@ contract SubscriptionMarketplace {
     /// @param amount0Max Maximum amount of token0 to spend
     /// @param amount1Max Maximum amount of token1 to spend
     /// @param useFeesAsLiquidity Whether to use accumulated fees
-    function generateIncreaseLiquidity(
+    function generateIncreaseLiquidityParams(
         address wrappedSubscription,
         uint256 tokenId,
         uint128 liquidityIncrease,
@@ -344,18 +344,18 @@ contract SubscriptionMarketplace {
     /// @param amount0Min Minimum amount of token0 to receive
     /// @param amount1Min Minimum amount of token1 to receive
     /// @param recipient Address to receive the tokens
-    function decreaseLiquidity(
+    function generateDecreaseLiquidityParams(
         address wrappedSubscription,
         uint256 tokenId,
         uint128 liquidityDecrease,
         uint256 amount0Min,
         uint256 amount1Min,
         address recipient
-    ) external {
+    ) external view returns (bytes memory decreaseParams, uint256 deadline) {
         // When decreasing liquidity, you’ll receive tokens, so it's most common to receive a pair of tokens:
         bytes memory actions = abi.encodePacked(
-            Actions.DECREASE_LIQUIDITY,
-            Actions.TAKE_PAIR
+            uint8(Actions.DECREASE_LIQUIDITY),
+            uint8(Actions.TAKE_PAIR)
         );
 
         bytes[] memory params = new bytes[](2);
@@ -379,7 +379,12 @@ contract SubscriptionMarketplace {
         params[1] = abi.encode(currency0, currency1, recipient);
 
         // Execute the decrease
-        i_positionManager.modifyLiquidities(
+        // i_positionManager.modifyLiquidities(
+        //     abi.encode(actions, params),
+        //     block.timestamp + DEADLINE_INTERVAL
+        // );
+
+        return (
             abi.encode(actions, params),
             block.timestamp + DEADLINE_INTERVAL
         );
@@ -399,8 +404,8 @@ contract SubscriptionMarketplace {
     ) external {
         // Define the sequence of operations
         bytes memory actions = abi.encodePacked(
-            Actions.DECREASE_LIQUIDITY, // Remove liquidity
-            Actions.TAKE_PAIR // Receive both tokens
+            uint8(Actions.DECREASE_LIQUIDITY), // Remove liquidity
+            uint8(Actions.TAKE_PAIR) // Receive both tokens
         );
 
         // Prepare parameters array
@@ -448,8 +453,8 @@ contract SubscriptionMarketplace {
         // 1. BURN_POSITION - Removes the position and creates positive deltas
         // 2. TAKE_PAIR - Sends all tokens to the recipient
         bytes memory actions = abi.encodePacked(
-            Actions.BURN_POSITION,
-            Actions.TAKE_PAIR
+            uint8(Actions.BURN_POSITION),
+            uint8(Actions.TAKE_PAIR)
         );
 
         bytes[] memory params = new bytes[](2);
