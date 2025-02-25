@@ -215,7 +215,7 @@ contract SubscriptionMarketplace {
         return params;
     }
 
-    function mintPosition(
+    function generateMintPositionParams(
         // Pool parameters
         PoolKey calldata poolKey,
         // Position parameters
@@ -274,28 +274,28 @@ contract SubscriptionMarketplace {
     /// @param amount0Max Maximum amount of token0 to spend
     /// @param amount1Max Maximum amount of token1 to spend
     /// @param useFeesAsLiquidity Whether to use accumulated fees
-    function increaseLiquidity(
+    function generateIncreaseLiquidity(
         address wrappedSubscription,
         uint256 tokenId,
         uint128 liquidityIncrease,
         uint256 amount0Max,
         uint256 amount1Max,
         bool useFeesAsLiquidity
-    ) external {
+    ) external view returns (bytes memory increaseParams, uint256 deadline) {
         // Define the sequence of operations:
         // If using fees: Handle potential fee conversion
         // If not: Standard liquidity addition
         bytes memory actions;
         if (useFeesAsLiquidity) {
             actions = abi.encodePacked(
-                Actions.INCREASE_LIQUIDITY, // Add liquidity
-                Actions.CLOSE_CURRENCY, // Handle token0 (might need to pay or receive)
-                Actions.CLOSE_CURRENCY // Handle token1 (might need to pay or receive)
+                uint8(Actions.INCREASE_LIQUIDITY), // Add liquidity
+                uint8(Actions.CLOSE_CURRENCY), // Handle token0 (might need to pay or receive)
+                uint8(Actions.CLOSE_CURRENCY) // Handle token1 (might need to pay or receive)
             );
         } else {
             actions = abi.encodePacked(
-                Actions.INCREASE_LIQUIDITY, // Add liquidity
-                Actions.SETTLE_PAIR // Provide tokens
+                uint8(Actions.INCREASE_LIQUIDITY), // Add liquidity
+                uint8(Actions.SETTLE_PAIR) // Provide tokens
             );
         }
 
@@ -327,7 +327,12 @@ contract SubscriptionMarketplace {
         }
 
         // Execute the increase
-        i_positionManager.modifyLiquidities(
+        // i_positionManager.modifyLiquidities(
+        //     abi.encode(actions, params),
+        //     block.timestamp + DEADLINE_INTERVAL
+        // );
+
+        return (
             abi.encode(actions, params),
             block.timestamp + DEADLINE_INTERVAL
         );
