@@ -195,6 +195,25 @@ contract SubSwapTest is Test {
         positionManager.modifyLiquidities(decreaseParams, decreaseDeadline);
 
         vm.stopPrank();
+
+        // Let user2 collect the fees
+        vm.startPrank(user2);
+
+        (
+            bytes memory collectFeesParams,
+            uint256 collectFeeDeadline
+        ) = marketplace.generateCollectFeesParams(
+                wrapperTokenAddress,
+                user2TokenId,
+                user2
+            );
+
+        positionManager.modifyLiquidities(
+            collectFeesParams,
+            collectFeeDeadline
+        );
+
+        vm.stopPrank();
     }
 
     /*//////////////////////////////////////////////////////////////
