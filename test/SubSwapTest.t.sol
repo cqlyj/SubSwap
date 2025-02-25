@@ -12,6 +12,7 @@ import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {MockUsdc} from "test/mocks/MockUsdc.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
+import {PositionManager} from "v4-periphery/src/PositionManager.sol";
 
 /// This is fork test for sepolia
 /// Please run `make test-sepolia`
@@ -25,6 +26,10 @@ contract SubSwapTest is Test {
     SubscriptionPricingHook public pricingHook;
     SubscriptionMarketplace public marketplace;
     MockUsdc public usdc;
+    IAllowanceTransfer private immutable permit2 =
+        IAllowanceTransfer(0x000000000022D473030F116dDEE9F6B43aC78BA3);
+    PositionManager private immutable positionManager =
+        PositionManager(payable(0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4));
 
     function setUp() external {
         factory = new SubscriptionFactory();
@@ -44,8 +49,8 @@ contract SubSwapTest is Test {
             address(usdc), // USDC
             // address(pricingHook), // _defaultHooks
             address(0),
-            0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4, // _positionManager
-            0x000000000022D473030F116dDEE9F6B43aC78BA3, // _permit2
+            address(positionManager), // _positionManager
+            address(permit2), // _permit2
             0x3A9D48AB9751398BbFa63ad67599Bb04e4BdF98b // _router
         );
         vm.stopPrank();
@@ -74,12 +79,15 @@ contract SubSwapTest is Test {
 
         // create the pool
         bytes memory hookData = abi.encode(1);
-        address wrapperToken = address(wrapper.getWrappedToken(1));
+        address wrapperTokenAddress = address(wrapper.getWrappedToken(1));
 
         vm.startPrank(user1);
 
-        marketplace.createPool(
-            wrapperToken, // wrappedToken
+        // Approve the token pairs for the pool
+        _tokenApprovals(IERC20(wrapperTokenAddress), IERC20(address(usdc)));
+
+        bytes[] memory params = marketplace.generateCreatePoolParams(
+            wrapperTokenAddress, // wrappedToken
             3000, // lpFee
             IHooks(address(0)), // hooks
             79228162514264337593543950336, // startingPrice
@@ -92,6 +100,30 @@ contract SubSwapTest is Test {
             hookData
         );
 
+        // After this call, the pool will be created and the tokens will be deposited
+        positionManager.multicall(params);
+
         vm.stopPrank();
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            HELPER FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    function _tokenApprovals(IERC20 token0, IERC20 token1) internal {
+        token0.approve(address(permit2), type(uint256).max);
+        permit2.approve(
+            address(token0),
+            address(positionManager),
+            type(uint160).max,
+            type(uint48).max
+        );
+        token1.approve(address(permit2), type(uint256).max);
+        permit2.approve(
+            address(token1),
+            address(positionManager),
+            type(uint160).max,
+            type(uint48).max
+        );
     }
 }
