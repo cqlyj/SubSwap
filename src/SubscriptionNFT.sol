@@ -84,6 +84,8 @@ contract SubscriptionNft is ERC1155 {
     // Creates new subscription tokens
     // Parameters explain: planId is the ID of the subscription template, quantity is the number of tokens to mint
     // @TODO: We will update this function to make sure only when the content creator receives the payment, this function can be called
+    // Perhaps use some automation node to listen for the event and call this function
+    // Or only allow the content creator to call this function => centralized! Not that good
     function createSubscription(uint256 planId, uint256 quantity) external {
         if (!i_factory.getPlan(planId).isActive) {
             revert SubscriptionNFT__InvalidPlanId();
