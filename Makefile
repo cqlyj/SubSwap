@@ -5,3 +5,6 @@ install:
 
 test-sepolia:
 	@forge test -vvvv --rpc-url $(SEPOLIA_RPC_URL)
+
+slither:
+	@slither . --config-file ./slither.config.json --skip-assembly
