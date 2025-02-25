@@ -11,21 +11,21 @@ contract SubscriptionWrapper is IERC1155Receiver {
     //////////////////////////////////////////////////////////////*/
 
     IERC1155 private immutable i_subscriptionNft;
-    mapping(uint256 tokenId => WrappedSubscription wrappedToken)
-        private s_tokenIdToWrappedToken;
+    mapping(uint256 planId => WrappedSubscription wrappedToken)
+        private s_planIdToWrappedToken;
 
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
-    error SubscriptionWrapper__TokenNotWrapped(uint256 tokenId);
+    error SubscriptionWrapper__TokenNotWrapped(uint256 planId);
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
     event WrappedTokenCreated(
-        uint256 indexed tokenId,
+        uint256 indexed planId,
         address indexed wrappedToken
     );
 
@@ -54,18 +54,18 @@ contract SubscriptionWrapper is IERC1155Receiver {
     //////////////////////////////////////////////////////////////*/
 
     function ensureWrappedToken(
-        uint256 tokenId
+        uint256 planId
     ) public returns (WrappedSubscription) {
-        if (address(s_tokenIdToWrappedToken[tokenId]) == address(0)) {
-            WrappedSubscription newToken = new WrappedSubscription(tokenId);
-            s_tokenIdToWrappedToken[tokenId] = newToken;
-            emit WrappedTokenCreated(tokenId, address(newToken));
+        if (address(s_planIdToWrappedToken[planId]) == address(0)) {
+            WrappedSubscription newToken = new WrappedSubscription(planId);
+            s_planIdToWrappedToken[planId] = newToken;
+            emit WrappedTokenCreated(planId, address(newToken));
         }
-        return s_tokenIdToWrappedToken[tokenId];
+        return s_planIdToWrappedToken[planId];
     }
 
-    function deposit(uint256 tokenId, uint256 amount) external {
-        WrappedSubscription wrapped = ensureWrappedToken(tokenId);
+    function deposit(uint256 planId, uint256 tokenId, uint256 amount) external {
+        WrappedSubscription wrapped = ensureWrappedToken(planId);
 
         // Transfer ERC-1155 from user to contract
         i_subscriptionNft.safeTransferFrom(
@@ -77,20 +77,24 @@ contract SubscriptionWrapper is IERC1155Receiver {
         );
 
         // Mint ERC-20 equivalent
-        wrapped.mint(msg.sender, amount);
+        wrapped.mint(msg.sender, amount, tokenId);
 
         emit Deposited(msg.sender, tokenId, amount);
     }
 
-    function withdraw(uint256 tokenId, uint256 amount) external {
-        WrappedSubscription wrapped = s_tokenIdToWrappedToken[tokenId];
+    function withdraw(
+        uint256 planId,
+        uint256 tokenId,
+        uint256 amount
+    ) external {
+        WrappedSubscription wrapped = s_planIdToWrappedToken[planId];
 
         if (address(wrapped) == address(0)) {
-            revert SubscriptionWrapper__TokenNotWrapped(tokenId);
+            revert SubscriptionWrapper__TokenNotWrapped(planId);
         }
 
         // Burn ERC-20 from user
-        wrapped.burn(msg.sender, amount);
+        wrapped.burn(msg.sender, amount, tokenId);
 
         // Transfer ERC-1155 back to user
         i_subscriptionNft.safeTransferFrom(
@@ -139,8 +143,8 @@ contract SubscriptionWrapper is IERC1155Receiver {
     //////////////////////////////////////////////////////////////*/
 
     function getWrappedToken(
-        uint256 tokenId
+        uint256 planId
     ) external view returns (WrappedSubscription) {
-        return s_tokenIdToWrappedToken[tokenId];
+        return s_planIdToWrappedToken[planId];
     }
 }
