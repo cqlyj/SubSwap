@@ -15,6 +15,7 @@ import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol"
 import {PositionManager} from "v4-periphery/src/PositionManager.sol";
 import {Currency, CurrencyLibrary} from "v4-core/src/types/Currency.sol";
 import {PoolKey, PoolIdLibrary} from "v4-core/src/types/PoolKey.sol";
+import {UniversalRouter} from "@uniswap/universal-router/contracts/UniversalRouter.sol";
 
 /// This is fork test for sepolia
 /// Please run `make test-sepolia`
@@ -35,6 +36,8 @@ contract SubSwapTest is Test {
         IAllowanceTransfer(0x000000000022D473030F116dDEE9F6B43aC78BA3);
     PositionManager private immutable positionManager =
         PositionManager(payable(0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4));
+    UniversalRouter private immutable router =
+        UniversalRouter(payable(0x3A9D48AB9751398BbFa63ad67599Bb04e4BdF98b));
 
     function setUp() external {
         factory = new SubscriptionFactory();
@@ -56,7 +59,7 @@ contract SubSwapTest is Test {
             address(0),
             address(positionManager), // _positionManager
             address(permit2), // _permit2
-            0x3A9D48AB9751398BbFa63ad67599Bb04e4BdF98b // _router
+            address(router) // _router
         );
         vm.stopPrank();
 

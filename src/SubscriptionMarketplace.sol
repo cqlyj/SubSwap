@@ -497,23 +497,18 @@ contract SubscriptionMarketplace {
         );
     }
 
-    function buySubscription(
+    /// @notice This makes no sense, I don't think we really need this function, it will be better we just call this function right on the Uniswap router
+    function generateBuySubscriptionParams(
         PoolKey memory poolKey,
         uint256 tokenId, // the exact tokenId of the subscription you want to buy
         uint128 maxAmountIn,
         uint128 amountOut // Actually it's always 1
-    ) external {
+    ) external returns (bytes memory commands, bytes[] memory inputs) {
         if (amountOut == 0) revert SubscriptionMarketplace__InvalidAmount();
 
-        _approveTokenWithPermit2(
-            address(i_usdc),
-            maxAmountIn,
-            type(uint48).max
-        );
-
         // Encode the Universal Router command
-        bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
-        bytes[] memory inputs = new bytes[](1);
+        commands = abi.encodePacked(uint8(Commands.V4_SWAP));
+        inputs = new bytes[](1);
 
         // Encode V4Router actions
 
@@ -556,28 +551,30 @@ contract SubscriptionMarketplace {
 
         // Execute the swap
         // The block.timestamp deadline parameter ensures the transaction will be executed in the current block.
-        i_router.execute(commands, inputs, block.timestamp);
+        // i_router.execute(commands, inputs, block.timestamp);
 
         // @update
         // we may need to check the balance of the wrappedSubscription
 
         emit SubscriptionPurchased();
+
+        return (commands, inputs);
     }
 
+    /// @notice This makes no sense, I don't think we really need this function, it will be better we just call this function right on the Uniswap router
     function sellSubscription(
         PoolKey memory poolKey,
-        address wrappedSubscription,
         uint256 tokenId,
         uint128 amountIn,
         uint128 minAmountOut
     ) external returns (uint256 amountOut) {
         if (amountIn == 0) revert SubscriptionMarketplace__InvalidAmount();
 
-        _approveTokenWithPermit2(
-            address(wrappedSubscription),
-            amountIn,
-            type(uint48).max
-        );
+        // _approveTokenWithPermit2(
+        //     address(wrappedSubscription),
+        //     amountIn,
+        //     type(uint48).max
+        // );
 
         // Encode the Universal Router command
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
@@ -639,15 +636,6 @@ contract SubscriptionMarketplace {
     /*//////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-
-    function _approveTokenWithPermit2(
-        address token,
-        uint160 amount,
-        uint48 expiration
-    ) internal {
-        IERC20(token).approve(address(i_permit2), type(uint256).max);
-        i_permit2.approve(token, address(i_router), amount, expiration);
-    }
 
     function _initializePool(
         PoolKey memory pool,
