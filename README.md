@@ -48,13 +48,10 @@ A **Web3-powered subscription marketplace** where:
 
 # **🛠 Tech Stack & Protocols**
 
-| Feature                | Protocol Used               | Why?                                                |
-| ---------------------- | --------------------------- | --------------------------------------------------- |
-| **Easy Wallet Setup**  | **Privy**                   | Users sign up with email, no Web3 knowledge needed. |
-| **Subscription NFTs**  | **Polygon (ERC-1155 SFTs)** | Gas-efficient and scalable.                         |
-| **Payment Handling**   | **Circle (USDC)**           | Stable & globally accepted currency.                |
-| **Resale & Swaps**     | **Uniswap Foundation**      | Users can swap subscriptions for tokens.            |
-| **Multi-Chain Access** | **Hyperlane**               | Subscriptions work across chains.                   |
+| Feature               | Protocol Used               | Why?                                     |
+| --------------------- | --------------------------- | ---------------------------------------- |
+| **Subscription NFTs** | **Polygon (ERC-1155 SFTs)** | Gas-efficient and scalable.              |
+| **Resale & Swaps**    | **Uniswap Foundation**      | Users can swap subscriptions for tokens. |
 
 ---
 
@@ -92,21 +89,7 @@ A **Web3-powered subscription marketplace** where:
 
 # **Tech Stack & Protocols for SubSwap**
 
-## **1. User-Friendly Wallet Integration**
-
-**Protocol:** Privy Embedded Wallets
-
-**Purpose:** To provide a seamless onboarding experience for users, especially those unfamiliar with Web3, by allowing them to sign up using traditional methods like email or social accounts.
-
-**Details:**
-
-- **Embedded Wallets:** Privy offers embedded wallets that can be configured to create wallets upon user registration. Developers can manage settings such as when the wallet is created and how user confirmations are handled.
-
-- **Cross-App Connectivity:** Privy's embedded wallet connector allows integration with existing libraries like RainbowKit or wagmi, ensuring users can access their wallets across different applications.
-
-- **Android Support:** Privy has extended support for Android platforms, enabling developers to integrate embedded wallets into Android applications.
-
-## **2. Subscription Tokenization**
+## **1. Subscription Tokenization**
 
 **Protocol:** ERC-1155 Semi-Fungible Tokens (SFTs) on Polygon
 
@@ -118,17 +101,7 @@ A **Web3-powered subscription marketplace** where:
 
 - **Polygon Network:** Deploying ERC-1155 contracts on Polygon offers scalability and lower transaction fees, enhancing the user experience.
 
-## **3. Stablecoin Payments**
-
-**Protocol:** Circle's USDC
-
-**Purpose:** To facilitate stable and reliable transactions for subscription purchases, renewals, and resales.
-
-**Details:**
-
-- **USDC Integration:** Utilizing USDC ensures that users and creators transact with a stable asset, avoiding the volatility associated with other cryptocurrencies.
-
-## **4. Decentralized Marketplace Functionality**
+## **2. Decentralized Marketplace Functionality**
 
 **Protocol:** Uniswap Foundation
 
@@ -138,27 +111,20 @@ A **Web3-powered subscription marketplace** where:
 
 - **Token Swaps:** Integrating with Uniswap allows users to exchange their subscription tokens for other assets or vice versa, providing liquidity and flexibility.
 
-## **5. Cross-Chain Compatibility**
-
-**Protocol:** Hyperlane
-
-**Purpose:** To ensure that subscription tokens and functionalities are accessible across multiple blockchain networks.
-
-**Details:**
-
-- **Interoperability:** Hyperlane facilitates communication between different blockchains, allowing SubSwap to operate seamlessly across various networks.
-
 ---
 
 # **Profit Strategies**
 
-### **1️⃣ Marketplace Transaction Fee (1-5%)**
+### **Marketplace Transaction Fee (1-5%)**
 
 - Charge a **small fee on every transaction** that occurs in the marketplace.
 - This is **lower than centralized platforms** (which take 15-30%), making it fair.
 - Example: If Bob buys a Netflix subscription NFT for **$10 USDC**, SubSwap **takes 3% ($0.30)** as a fee.
 
-### **2️⃣ Cross-Chain Bridge Fee (0.5-1%)**
+# Test
 
-- If users **move their subscription NFTs** across chains (Polygon → Arbitrum), charge a **small bridging fee.**
-- Example: Bob moves his Netflix NFT from **Polygon to Arbitrum** → pays **a 0.5% fee.**
+Just run the following command to test the code:
+
+```bash
+make test-sepolia
+```
